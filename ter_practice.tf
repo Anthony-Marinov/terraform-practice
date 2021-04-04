@@ -1,11 +1,11 @@
 provider "google" {
   project = "amarinov-terraform-practice"
-  zone    = "europe-west1-b"
+  zone    = "europe-west2-a"
 }
 
-resource "google_compute_network" "nat-example" {
-  name = "nat-example"
-  mtu  = 1460
+resource "google_compute_network" "nat-marinov" {
+  name = "nat-marinov"
+  mtu  = 1422
   auto_create_subnetworks = false
   project = "amarinov-terraform-practice"
   routing_mode = "REGIONAL"
@@ -13,18 +13,18 @@ resource "google_compute_network" "nat-example" {
 
 
 
-resource "google_compute_subnetwork" "some-subnet" {
-  name          = "some-subnet"
-  ip_cidr_range = "10.0.1.0/24"
-  region        = "europe-west1"
-  network       = google_compute_network.nat-example.id
+resource "google_compute_subnetwork" "marinov-subnet" {
+  name          = "marinov-subnet"
+  ip_cidr_range = "192.124.3.0/24"
+  region        = "europe-west2"
+  network       = google_compute_network.nat-marinov.id
 }
 
 
 
-resource "google_compute_firewall" "allow-internal-example" {
-  name    = "allow-internal-example"
-  network = google_compute_network.nat-example.name
+resource "google_compute_firewall" "allow-internal-marinov" {
+  name    = "allow-internal-marinov"
+  network = google_compute_network.nat-marinov.name
 
   allow {
     protocol = "icmp"
@@ -40,15 +40,15 @@ resource "google_compute_firewall" "allow-internal-example" {
     ports    = ["1-65535"]
   }
 
-  source_ranges = ["10.0.1.0/24"]
-  priority = 65534
+  source_ranges = ["192.124.3.0/24"]
+  priority = 65530
 }
 
 
 
 resource "google_compute_firewall" "allow-ssh-iap" {
   name    = "allow-ssh-iap"
-  network = google_compute_network.nat-example.name
+  network = google_compute_network.nat-marinov.name
   direction = "INGRESS"
 
   allow {
@@ -56,36 +56,36 @@ resource "google_compute_firewall" "allow-ssh-iap" {
     ports    = ["22"]
   }
 
-  source_ranges = ["35.235.240.0/20"]
+  source_ranges = ["10.10.0.0/16"]
   target_tags = ["allow-ssh"]
 }
 
 
 
-resource "google_compute_instance" "example-instance" {
-  name         = "example-instance"
-  machine_type = "f1-micro"
-  zone         = "europe-west1-b"
+resource "google_compute_instance" "marinov-instance" {
+  name         = "marinov-instance"
+  machine_type = "n2-standard-4"
+  zone         = "europe-west2-a"
 
   tags = ["no-ip", "allow-ssh"]
 
   boot_disk {
     initialize_params {
-      image = "centos-7/centos-cloud"
+      image = "https://www.googleapis.com/compute/v1/projects/centos-cloud/global/images/centos-7-v20210217"
     }
   }
 
   network_interface {
-    subnetwork = "some-subnet"
+    subnetwork = "marinov-subnet"
   }
 }
 
 
 
-resource "google_compute_instance" "nat-gateway" {
-  name         = "nat-gateway"
-  machine_type = "f1-micro"
-  zone         = "europe-west1-b"
+resource "google_compute_instance" "marinov-gateway" {
+  name         = "marinov-gateway"
+  machine_type = "n2-standard-4"
+  zone         = "europe-west2-a"
 
   can_ip_forward  = true
 
@@ -93,12 +93,12 @@ resource "google_compute_instance" "nat-gateway" {
 
   boot_disk {
     initialize_params {
-      image = "centos-7/centos-cloud"
+      image = "https://www.googleapis.com/compute/v1/projects/centos-cloud/global/images/centos-7-v20210217"
     }
   }
 
   network_interface {
-    subnetwork = "Subnetic"
+    subnetwork = "marinov-subnet"
     access_config {
 
     }
@@ -109,15 +109,13 @@ resource "google_compute_instance" "nat-gateway" {
   }
 }
 
-
-
 resource "google_compute_route" "no-ip-internet-route" {
   name        = "no-ip-internet-route"
   dest_range  = "0.0.0.0/0"
-  network     = google_compute_network.nat-example.name
+  network     = google_compute_network.nat-marinov.name
   
-  next_hop_instance = "nat-gateway"
-  next_hop_instance_zone = "europe-west1-b"
+  next_hop_instance = "marinov-gateway"
+  next_hop_instance_zone = "europe-west2-a"
 
   tags = ["no-ip"]
 
